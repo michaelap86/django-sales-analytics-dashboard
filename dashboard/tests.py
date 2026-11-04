@@ -1,12 +1,15 @@
 import io
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
+from django.db.models import F
 from django.test import TestCase
 from openpyxl import load_workbook
 
-from .models import AuditLog, Customer, Notification, Order, Product, ScheduledReport
+from . import demo
+from .models import AuditLog, Customer, DailyTraffic, Notification, Order, Product, ScheduledReport
 
 
 class DemoDataTestCase(TestCase):
@@ -147,6 +150,28 @@ class RoleTests(DemoDataTestCase):
         self.assertTrue(target.groups.filter(name="Manager").exists())
         self.client.post(f"/users/{self.viewer.pk}/role/", {"role": "Admin"})
         self.assertFalse(self.viewer.groups.filter(name="Admin").exists())
+
+
+class DemoRefreshTests(TestCase):
+    def setUp(self):
+        call_command("seed_demo", orders=200, customers=60, months=6, stdout=io.StringIO())
+        demo.__dict__["_checked_on"] = None
+
+    def test_fresh_data_is_left_alone(self):
+        first_order = Order.objects.order_by("pk").first().pk
+        demo.refresh_if_stale()
+        self.assertEqual(Order.objects.order_by("pk").first().pk, first_order)
+
+    def test_stale_data_is_regenerated_without_signing_users_out(self):
+        DailyTraffic.objects.update(date=F("date") - timedelta(days=3))
+        user_pk = get_user_model().objects.get(username="demo").pk
+        self.client.force_login(get_user_model().objects.get(username="demo"))
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)  # still signed in
+        self.assertEqual(DailyTraffic.objects.latest("date").date, date.today())
+        self.assertEqual(get_user_model().objects.get(username="demo").pk, user_pk)
 
 
 class SettingsTests(DemoDataTestCase):

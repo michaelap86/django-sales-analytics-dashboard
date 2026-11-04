@@ -5,8 +5,24 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+
+
+def _secret_key():
+    """Env var first; otherwise a random key kept in a git-ignored file next to the code."""
+    if key := os.environ.get("DJANGO_SECRET_KEY"):
+        return key
+    if DEBUG:
+        return "dev-only-insecure-key-change-me"
+    from django.core.management.utils import get_random_secret_key
+
+    path = BASE_DIR / ".secret_key"
+    if not path.exists():
+        path.write_text(get_random_secret_key())
+    return path.read_text().strip()
+
+
+SECRET_KEY = _secret_key()
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
@@ -31,6 +47,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "dashboard.demo.DemoRefreshMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -100,6 +117,10 @@ LOGOUT_REDIRECT_URL = "login"
 
 # Shown on the login page and created by `seed_demo`
 DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "demo1234")
+
+# Regenerate the fictional data on the first request of each day so date
+# filters like "last 30 days" never come up empty (see dashboard/demo.py)
+DEMO_AUTO_REFRESH = os.environ.get("DEMO_AUTO_REFRESH", "1") == "1"
 
 # Scheduled reports are printed to the server log instead of being sent.
 # Point these at a real SMTP server to deliver them.

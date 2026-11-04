@@ -83,6 +83,25 @@ python manage.py send_scheduled_reports --all   # sends every active report now
 Run it hourly from cron or any scheduler. By default e-mails are printed to the server log;
 set `EMAIL_BACKEND` and the usual Django SMTP settings to deliver them.
 
+## Fresh demo data every day
+
+The data is generated relative to today's date. The first request of each day regenerates it
+(`dashboard/demo.py`), so filters like "last 30 days" always show recent activity and changes made
+by visitors are reset daily. Demo accounts are reset in place, so nobody is signed out.
+Set `DEMO_AUTO_REFRESH=0` to turn this off.
+
+## Deploy to PythonAnywhere (free, always on)
+
+1. On the **Web** tab, add a new web app: *Manual configuration*, *Python 3.12*.
+2. Open a **Bash console** and run:
+   ```bash
+   bash <(curl -sL https://raw.githubusercontent.com/michaelap86/django-sales-analytics-dashboard/main/deploy/pythonanywhere.sh)
+   ```
+3. Back on the **Web** tab, set *Virtualenv* to `~/django-sales-analytics-dashboard/.venv`,
+   enable *Force HTTPS* and press **Reload**.
+
+Run the same command again to update after pushing changes, then press **Reload**.
+
 ## Deploy to Render (free)
 
 1. Push this folder to a GitHub repository.

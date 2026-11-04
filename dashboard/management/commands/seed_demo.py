@@ -136,17 +136,25 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------ users
     def _create_users(self):
+        # Accounts are reset in place rather than recreated, so a daily refresh
+        # doesn't sign out visitors who are using the demo at that moment
         User = get_user_model()
-        User.objects.filter(username__in=[t[0] for t in TEAM]).delete()
         users = {}
         for username, first, last, role, title, is_demo in TEAM:
-            user = User.objects.create_user(
-                username=username, email=f"{username.replace('.', '')}@pulse-demo.com",
-                first_name=first, last_name=last,
-                # Team members are scenery: no password means they can't sign in
-                password=settings.DEMO_PASSWORD if is_demo else None,
-                last_login=timezone.now() - timedelta(hours=self.rng.randint(1, 240)),
-            )
+            user, _ = User.objects.get_or_create(username=username)
+            user.email = f"{username.replace('.', '')}@pulse-demo.com"
+            user.first_name, user.last_name = first, last
+            user.is_active = True
+            user.last_login = timezone.now() - timedelta(hours=self.rng.randint(1, 240))
+            # Team members are scenery: no password means they can't sign in.
+            # Re-hashing an unchanged password would end active sessions, so skip it.
+            if is_demo:
+                if not user.check_password(settings.DEMO_PASSWORD):
+                    user.set_password(settings.DEMO_PASSWORD)
+            elif user.has_usable_password():
+                user.set_unusable_password()
+            user.save()
+            Profile.objects.get_or_create(user=user)
             set_role(user, role)
             Profile.objects.filter(user=user).update(
                 job_title=title, is_demo=is_demo,
