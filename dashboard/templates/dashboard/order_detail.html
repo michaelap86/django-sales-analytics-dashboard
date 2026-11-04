@@ -1,0 +1,121 @@
+{% extends "dashboard/base.html" %}
+{% load dash %}
+
+{% block title %}{{ order.number }}{% endblock %}
+{% block breadcrumbs %}<nav class="crumbs"><a href="{% url 'orders' %}">Orders</a><span>/</span>{{ order.number }}</nav>{% endblock %}
+{% block heading %}Order {{ order.number }} <span class="badge badge-{{ order.status }} big">{{ order.get_status_display }}</span>{% endblock %}
+{% block subheading %}Placed {{ order.created|date:"F j, Y" }} at {{ order.placed_time|time:"H:i" }} UTC · {{ order.get_channel_display }}{% endblock %}
+
+{% block actions %}
+  <a class="btn btn-ghost" href="{% url 'invoice_pdf' order.number %}" target="_blank">{% icon "file" %}<span>View invoice</span></a>
+  <a class="btn" href="{% url 'invoice_pdf' order.number %}?download=1">{% icon "download" %}<span>Invoice PDF</span></a>
+{% endblock %}
+
+{% block content %}
+<section class="grid grid-detail">
+  <div class="stack">
+    <article class="card">
+      <header class="card-head">
+        <div><h2>Items</h2><p class="muted">{{ items|length }} line item{{ items|length|pluralize }}</p></div>
+      </header>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Product</th><th class="hide-sm">SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Line total</th></tr></thead>
+          <tbody>
+            {% for item in items %}
+              <tr class="row-link" data-href="{% url 'product_detail' item.product_id %}">
+                <td>
+                  <div class="cell-main">{{ item.product.name }}</div>
+                  <div class="cell-sub"><i class="dot" style="background: {{ item.product.category.color }}"></i>{{ item.product.category.name }}</div>
+                </td>
+                <td class="hide-sm mono muted">{{ item.product.sku }}</td>
+                <td class="num">{{ item.quantity }}</td>
+                <td class="num">{{ item.unit_price|money:2 }}</td>
+                <td class="num strong">{{ item.line_total|money:2 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="4" class="num muted">Subtotal</td><td class="num">{{ subtotal|money:2 }}</td></tr>
+            <tr><td colspan="4" class="num muted">Shipping</td><td class="num">Free</td></tr>
+            <tr><td colspan="4" class="num">Order total</td><td class="num total">{{ order.total|money:2 }}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </article>
+
+    <article class="card">
+      <header class="card-head"><div><h2>Timeline</h2><p class="muted">Every step of this order</p></div></header>
+      <ol class="timeline">
+        {% for e in events %}
+          <li class="tl-{{ e.status }}">
+            <span class="tl-icon">{% icon e.status|status_icon 15 %}</span>
+            <div>
+              <div class="cell-main">{{ e.get_status_display }}</div>
+              <div class="cell-sub">{{ e.note }}</div>
+              <div class="tl-meta">{{ e.created_at|date:"M j, Y · H:i" }}{% if e.user %} · by {{ e.user.get_full_name|default:e.user.username }}{% endif %}</div>
+            </div>
+          </li>
+        {% empty %}
+          <li class="muted">No events recorded.</li>
+        {% endfor %}
+      </ol>
+    </article>
+  </div>
+
+  <div class="stack">
+    <article class="card">
+      <header class="card-head"><div><h2>Manage order</h2><p class="muted">Move it through fulfilment</p></div></header>
+      {% if is_manager %}
+        {% if order.next_statuses %}
+          <form method="post" action="{% url 'order_status' order.number %}" class="form-stack"
+                data-confirm="Change the status of {{ order.number }}?">
+            {% csrf_token %}
+            <label>New status
+              <select name="status" required>
+                {% for value, label in order.next_statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Note <span class="muted">(optional)</span>
+              <input type="text" name="note" maxlength="200" placeholder="e.g. tracking number, refund reason">
+            </label>
+            <button class="btn" type="submit">{% icon "check" %}Update status</button>
+          </form>
+        {% else %}
+          <p class="muted">This order is refunded; no further changes are possible.</p>
+        {% endif %}
+      {% else %}
+        <p class="locked">{% icon "lock" 16 %}<span>Your role (<b>{{ role }}</b>) can view orders but not change them. Sign in as <b>manager</b> or <b>demo</b> to try it.</span></p>
+      {% endif %}
+    </article>
+
+    <article class="card">
+      <header class="card-head"><div><h2>Customer</h2></div><a class="link" href="{% url 'customer_detail' order.customer_id %}">Profile →</a></header>
+      <div class="person big">
+        <span class="avatar avatar-{{ order.customer_id|avatar_tone }}">{{ order.customer.name|initials }}</span>
+        <div>
+          <div class="cell-main">{{ order.customer.name }}</div>
+          <div class="cell-sub">{{ order.customer.company|default:"Individual buyer" }}</div>
+        </div>
+      </div>
+      <dl class="facts">
+        <dt>Email</dt><dd>{{ order.customer.email }}</dd>
+        <dt>Phone</dt><dd>{{ order.customer.phone }}</dd>
+        <dt>Country</dt><dd>{{ order.customer.country }}</dd>
+        <dt>Region</dt><dd>{{ region_name }}</dd>
+        <dt>Total orders</dt><dd>{{ customer_orders }}</dd>
+        <dt>Customer since</dt><dd>{{ order.customer.joined|date:"M j, Y" }}</dd>
+      </dl>
+    </article>
+
+    <article class="card">
+      <header class="card-head"><div><h2>Payment</h2></div></header>
+      <dl class="facts">
+        <dt>Method</dt><dd>{{ order.get_payment_display }}</dd>
+        <dt>Amount</dt><dd><b>{{ order.total|money:2 }}</b></dd>
+        <dt>Channel</dt><dd>{{ order.get_channel_display }}</dd>
+      </dl>
+    </article>
+  </div>
+</section>
+{% endblock %}

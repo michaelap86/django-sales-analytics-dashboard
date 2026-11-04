@@ -1,0 +1,111 @@
+{% extends "dashboard/base.html" %}
+{% load dash humanize %}
+
+{% block title %}{{ product.name }}{% endblock %}
+{% block breadcrumbs %}<nav class="crumbs"><a href="{% url 'products' %}">Products</a><span>/</span>{{ product.category.name }}</nav>{% endblock %}
+{% block heading %}{{ product.name }} <span class="stock-pill {{ product.stock_status }} big">{% if product.stock_status == 'out' %}Out of stock{% elif product.stock_status == 'low' %}Low stock{% else %}In stock{% endif %}</span>{% endblock %}
+{% block subheading %}<span class="mono">{{ product.sku }}</span> · {{ product.category.name }}{% endblock %}
+
+{% block content %}
+<section class="kpis kpis-4">
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-revenue">{% icon "revenue" %}</span><span class="kpi-label">Price</span></div>
+    <div class="kpi-value">{{ product.price|money:2 }}</div><div class="kpi-foot muted">Cost {{ product.cost|money:2 }} · {{ product.margin|floatformat:1 }}% margin</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-orders">{% icon "orders" %}</span><span class="kpi-label">Sold (30 days)</span></div>
+    <div class="kpi-value">{{ product.sold_30|intcomma }}</div><div class="kpi-foot muted">{{ product.revenue_30|money }} revenue</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-profit">{% icon "products" %}</span><span class="kpi-label">In stock</span></div>
+    <div class="kpi-value">{{ product.stock|intcomma }}</div><div class="kpi-foot muted">Reorder at {{ product.reorder_level }}</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-aov">{% icon "clock" %}</span><span class="kpi-label">Runs out in</span></div>
+    <div class="kpi-value">{% if days_left is not None %}{{ days_left }} days{% else %}—{% endif %}</div>
+    <div class="kpi-foot muted">At {{ weekly_units|floatformat:1 }} units / week</div></article>
+</section>
+
+<section class="grid grid-main">
+  <article class="card chart-card span-2">
+    <header class="card-head"><div><h2>Weekly sales</h2><p class="muted">Last 26 weeks</p></div>
+      <div class="legend"><span><i class="dot dot-primary"></i>Revenue</span><span><i class="dot dot-accent"></i>Units</span></div></header>
+    <div class="chart-box tall"><canvas id="salesChart" role="img" aria-label="Weekly sales"></canvas></div>
+  </article>
+
+  <article class="card">
+    <header class="card-head"><div><h2>Update stock</h2><p class="muted">Changes are recorded in the audit log</p></div></header>
+    {% if is_manager %}
+      <form method="post" action="{% url 'product_stock' product.pk %}" class="form-stack">
+        {% csrf_token %}
+        <div class="segmented full" role="radiogroup">
+          <label><input type="radio" name="mode" value="add" checked><span>Receive stock</span></label>
+          <label><input type="radio" name="mode" value="set"><span>Set exact count</span></label>
+        </div>
+        <label>Quantity <input type="number" name="amount" min="-100000" max="100000" required placeholder="e.g. 100"></label>
+        <label>Reorder level <input type="number" name="reorder_level" min="0" max="10000" value="{{ product.reorder_level }}"></label>
+        <button class="btn" type="submit">{% icon "check" %}Save</button>
+      </form>
+    {% else %}
+      <p class="locked">{% icon "lock" 16 %}<span>Your role (<b>{{ role }}</b>) is read-only. Sign in as <b>manager</b> to update inventory.</span></p>
+    {% endif %}
+    <dl class="facts top-gap">
+      <dt>Lifetime units</dt><dd>{{ lifetime.units|default:0|intcomma }}</dd>
+      <dt>Lifetime revenue</dt><dd>{{ lifetime.revenue|money }}</dd>
+      <dt>Orders</dt><dd>{{ lifetime.orders|intcomma }}</dd>
+    </dl>
+  </article>
+</section>
+
+<section class="grid grid-2">
+  <article class="card">
+    <header class="card-head"><div><h2>Top buyers</h2><p class="muted">By units, all time</p></div></header>
+    <table class="table compact"><tbody>
+      {% for b in top_buyers %}
+        <tr class="row-link" data-href="{% url 'customer_detail' b.order__customer__id %}">
+          <td><div class="person"><span class="avatar avatar-{{ b.order__customer__id|avatar_tone }}">{{ b.order__customer__name|initials }}</span>
+            <div><div class="cell-main">{{ b.order__customer__name }}</div><div class="cell-sub">{{ b.order__customer__company|default:"Individual" }}</div></div></div></td>
+          <td class="num strong">{{ b.units }} units</td>
+        </tr>
+      {% empty %}<tr><td class="empty">No sales yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </article>
+  <article class="card">
+    <header class="card-head"><div><h2>Recent sales</h2><p class="muted">Latest orders with this product</p></div></header>
+    <table class="table compact"><tbody>
+      {% for i in recent_items %}
+        <tr class="row-link" data-href="{% url 'order_detail' i.order.number %}">
+          <td><a class="mono" href="{% url 'order_detail' i.order.number %}">{{ i.order.number }}</a><div class="cell-sub">{{ i.order.customer.name }}</div></td>
+          <td class="muted nowrap">{{ i.order.created|date:"M j" }}</td>
+          <td class="num">×{{ i.quantity }}</td>
+          <td class="num strong">{{ i.line_total|money:2 }}</td>
+        </tr>
+      {% empty %}<tr><td class="empty">No sales yet.</td></tr>{% endfor %}
+    </tbody></table>
+  </article>
+</section>
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      var data = Pulse.readJSON("chart-data");
+      Pulse.charts(function () {
+        var grid = Pulse.color("--grid");
+        return [new Chart(document.getElementById("salesChart"), {
+          data: {
+            labels: data.labels.map(function (l) { return new Date(l + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }); }),
+            datasets: [
+              { type: "bar", label: "Revenue", data: data.revenue, backgroundColor: Pulse.color("--primary-fade"), borderColor: Pulse.color("--primary"), borderWidth: 1, borderRadius: 4, yAxisID: "y" },
+              { type: "line", label: "Units", data: data.units, borderColor: Pulse.color("--accent"), backgroundColor: Pulse.color("--accent"), tension: 0.35, pointRadius: 2, yAxisID: "y1" },
+            ],
+          },
+          options: {
+            interaction: { mode: "index", intersect: false },
+            scales: {
+              x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 14 } },
+              y: { grid: { color: grid }, border: { display: false }, beginAtZero: true, ticks: { callback: function (v) { return Pulse.compact.format(v); } } },
+              y1: { position: "right", grid: { display: false }, border: { display: false }, beginAtZero: true, ticks: { precision: 0 } },
+            },
+            plugins: { tooltip: { callbacks: { label: function (c) { return " " + c.dataset.label + ": " + (c.dataset.yAxisID === "y" ? Pulse.money.format(c.parsed.y) : c.parsed.y); } } } },
+          },
+        })];
+      });
+    })();
+  </script>
+{% endblock %}

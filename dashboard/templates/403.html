@@ -1,0 +1,12 @@
+{% extends "dashboard/base.html" %}
+{% load dash %}
+{% block title %}No access{% endblock %}
+{% block heading %}No access{% endblock %}
+{% block content %}
+<section class="card empty-state">
+  <span class="empty-icon">{% icon "lock" 28 %}</span>
+  <h2>This page needs a higher role</h2>
+  <p class="muted">You're signed in as <b>{{ role }}</b>. Sign in as <b>demo</b> (Admin) to see users and the audit log.</p>
+  <a class="btn" href="{% url 'dashboard' %}">Back to overview</a>
+</section>
+{% endblock %}

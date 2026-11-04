@@ -1,0 +1,45 @@
+<form class="filterbar" method="get" id="filters">
+  {# Keeps the current preset when another filter changes; a clicked preset button comes later and wins #}
+  {% if filters.preset != 'custom' %}<input type="hidden" name="range" value="{{ filters.preset }}">{% endif %}
+  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  <div class="segmented" role="group" aria-label="Date range">
+    {% for key, preset in presets.items %}
+      <button type="submit" name="range" value="{{ key }}" class="{% if filters.preset == key %}on{% endif %}">{{ preset.0 }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="custom-range {% if filters.preset == 'custom' %}on{% endif %}">
+    <input type="date" name="start" value="{% if filters.preset == 'custom' %}{{ filters.start|date:'Y-m-d' }}{% endif %}" aria-label="From">
+    <span>→</span>
+    <input type="date" name="end" value="{% if filters.preset == 'custom' %}{{ filters.end|date:'Y-m-d' }}{% endif %}" aria-label="To">
+  </div>
+
+  <select name="category" aria-label="Category" onchange="this.form.requestSubmit()">
+    <option value="">All categories</option>
+    {% for c in categories %}
+      <option value="{{ c.pk }}" {% if filters.category == c %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="region" aria-label="Region" onchange="this.form.requestSubmit()">
+    <option value="">All regions</option>
+    {% for value, label in regions %}
+      <option value="{{ value }}" {% if filters.region == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="status" aria-label="Status" onchange="this.form.requestSubmit()">
+    <option value="">All statuses</option>
+    {% for value, label in statuses %}
+      <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  {% if show_search %}
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Search order, customer, email…" class="search">
+  {% endif %}
+
+  {% if filters.category or filters.region or filters.status or filters.q or filters.preset != '90d' %}
+    <a class="reset" href="?">Reset</a>
+  {% endif %}
+</form>

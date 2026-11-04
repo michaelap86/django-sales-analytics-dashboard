@@ -1,0 +1,186 @@
+{% extends "dashboard/base.html" %}
+{% load static dash humanize %}
+
+{% block title %}Overview{% endblock %}
+{% block heading %}Welcome back, {{ user.first_name|default:user.username }}{% endblock %}
+{% block subheading %}Sales overview · {{ filters.label }} · {{ filters.start|date:"M j, Y" }} – {{ filters.end|date:"M j, Y" }}{% endblock %}
+
+{% block actions %}{% include "dashboard/_export_menu.html" %}{% endblock %}
+
+{% block filterbar %}{% include "dashboard/_filters.html" %}{% endblock %}
+
+{% block content %}
+<section class="kpis">
+  {% for k in kpis %}
+    <article class="card kpi">
+      <div class="kpi-head">
+        <span class="kpi-icon kpi-{{ k.icon }}">{% icon k.icon %}</span>
+        <span class="kpi-label">{{ k.label }}</span>
+      </div>
+      <div class="kpi-value">{% if k.fmt == "money" %}{{ k.value|money }}{% else %}{{ k.value|intcomma }}{% endif %}</div>
+      <div class="kpi-foot">
+        {% if k.change is not None %}
+          <span class="delta {% if k.change >= 0 %}up{% else %}down{% endif %}">
+            {% if k.change >= 0 %}▲{% else %}▼{% endif %} {{ k.change|floatformat:1 }}%
+          </span>
+          <span class="muted">vs previous</span>
+        {% else %}
+          <span class="muted">No previous data</span>
+        {% endif %}
+        {% if k.note %}<span class="kpi-note">{{ k.note }}</span>{% endif %}
+      </div>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="grid grid-main">
+  <article class="card chart-card span-2">
+    <header class="card-head">
+      <div>
+        <h2>Revenue trend</h2>
+        <p class="muted">By {{ chart_data.unit }}, compared with the previous period</p>
+      </div>
+      <div class="legend">
+        <span><i class="dot dot-primary"></i>This period</span>
+        <span><i class="dot dot-muted"></i>Previous</span>
+      </div>
+    </header>
+    <div class="chart-box tall"><canvas id="revenueChart" aria-label="Revenue trend chart" role="img"></canvas></div>
+  </article>
+
+  <article class="card chart-card">
+    <header class="card-head">
+      <div><h2>Sales by category</h2><p class="muted">Share of revenue</p></div>
+    </header>
+    <div class="chart-box donut"><canvas id="categoryChart" aria-label="Revenue by category chart" role="img"></canvas></div>
+    <ul class="cat-list">
+      {% for c in by_category %}
+        <li>
+          <i class="dot" style="background: {{ c.product__category__color }}"></i>
+          <span>{{ c.product__category__name }}</span>
+          <b>{{ c.revenue|compact_money }}</b>
+          <span class="muted">{{ c.revenue|pct_of:category_total|floatformat:0 }}%</span>
+        </li>
+      {% empty %}
+        <li class="muted">No sales in this period.</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="grid grid-3">
+  <article class="card chart-card">
+    <header class="card-head"><div><h2>Revenue by region</h2><p class="muted">Where customers buy from</p></div>
+      <a class="link" href="{% url 'geography' %}?{{ filters.querystring }}">Map →</a></header>
+    <div class="chart-box"><canvas id="regionChart" aria-label="Revenue by region chart" role="img"></canvas></div>
+  </article>
+  <article class="card chart-card">
+    <header class="card-head"><div><h2>Orders per {{ chart_data.unit }}</h2><p class="muted">Order volume</p></div></header>
+    <div class="chart-box"><canvas id="ordersChart" aria-label="Orders chart" role="img"></canvas></div>
+  </article>
+  <article class="card chart-card">
+    <header class="card-head"><div><h2>Order status</h2><p class="muted">Fulfilment pipeline</p></div></header>
+    <div class="chart-box"><canvas id="statusChart" aria-label="Order status chart" role="img"></canvas></div>
+  </article>
+</section>
+
+<section class="grid grid-3">
+  <article class="card">
+    <header class="card-head"><div><h2>Top products</h2><p class="muted">Ranked by revenue</p></div>
+      <a class="link" href="{% url 'products' %}">All →</a></header>
+    <table class="table compact">
+      <tbody>
+        {% for p in top_products %}
+          <tr class="row-link" data-href="{% url 'product_detail' p.product__id %}">
+            <td>
+              <div class="cell-main">{{ p.product__name }}</div>
+              <div class="cell-sub"><i class="dot" style="background: {{ p.product__category__color }}"></i>{{ p.product__category__name }} · {{ p.units|intcomma }} units</div>
+            </td>
+            <td class="num strong">{{ p.revenue|compact_money }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="2" class="empty">No sales in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  <article class="card">
+    <header class="card-head"><div><h2>Top customers</h2><p class="muted">Highest spend in period</p></div>
+      <a class="link" href="{% url 'customers' %}">All →</a></header>
+    <table class="table compact">
+      <tbody>
+        {% for c in top_customers %}
+          <tr class="row-link" data-href="{% url 'customer_detail' c.order__customer__id %}">
+            <td>
+              <div class="person">
+                <span class="avatar avatar-{{ c.order__customer__id|avatar_tone }}">{{ c.order__customer__name|initials }}</span>
+                <div>
+                  <div class="cell-main">{{ c.order__customer__name }}</div>
+                  <div class="cell-sub">{{ c.orders }} orders · {{ c.region_name }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="num strong">{{ c.revenue|compact_money }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="2" class="empty">No customers in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  <article class="card">
+    <header class="card-head"><div><h2>Inventory alerts</h2><p class="muted">At or below reorder level</p></div>
+      <a class="link" href="{% url 'products' %}?stock=low">All →</a></header>
+    <ul class="alert-list">
+      {% for p in low_stock %}
+        <li>
+          <a href="{% url 'product_detail' p.pk %}">
+            <span class="alert-icon {% if p.stock == 0 %}out{% else %}low{% endif %}">{% icon "alert" 16 %}</span>
+            <span class="grow">
+              <span class="cell-main">{{ p.name }}</span>
+              <span class="cell-sub">{{ p.sku }} · reorder at {{ p.reorder_level }}</span>
+            </span>
+            <span class="stock-pill {% if p.stock == 0 %}out{% else %}low{% endif %}">{% if p.stock == 0 %}Out of stock{% else %}{{ p.stock }} left{% endif %}</span>
+          </a>
+        </li>
+      {% empty %}
+        <li class="muted pad">All products are well stocked.</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="card">
+  <header class="card-head">
+    <div><h2>Recent orders</h2><p class="muted">Latest activity matching your filters</p></div>
+    <a class="link" href="{% url 'orders' %}?{{ filters.querystring }}">View all orders →</a>
+  </header>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Order</th><th>Customer</th><th class="hide-sm">Channel</th><th>Date</th><th>Status</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for o in recent_orders %}
+          <tr class="row-link" data-href="{% url 'order_detail' o.number %}">
+            <td><a href="{% url 'order_detail' o.number %}" class="mono">{{ o.number }}</a></td>
+            <td>{{ o.customer.name }}</td>
+            <td class="hide-sm muted">{{ o.get_channel_display }}</td>
+            <td class="muted nowrap">{{ o.created|date:"M j" }}, {{ o.placed_time|time:"H:i" }}</td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.get_status_display }}</span></td>
+            <td class="num strong">{{ o.total|money:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">No orders match these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}

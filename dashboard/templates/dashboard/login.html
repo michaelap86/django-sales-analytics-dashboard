@@ -1,0 +1,87 @@
+{% load static dash %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Pulse Analytics</title>
+  <meta name="description" content="Sales analytics & admin panel demo built with Django, using fictional data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><path d='M6 18h5l3-8 4 14 3-6h5' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <script>
+    (function () { try { var t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {} })();
+  </script>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="auth">
+  <div class="auth-layout">
+    <section class="auth-art">
+      <a class="brand light" href="#">
+        <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 18h5l3-8 4 14 3-6h5"/></svg></span>
+        <span>Pulse<b>Analytics</b></span>
+      </a>
+      <div class="auth-pitch">
+        <h1>Every sale, customer and product, in one place.</h1>
+        <p>A full sales analytics and admin panel built with Django: dashboards, reports, forecasting, inventory, order management and role-based access.</p>
+        <ul class="auth-features">
+          <li>{% icon "reports" 16 %}Cohorts, funnel, heatmap &amp; 6-month forecast</li>
+          <li>{% icon "geography" 16 %}Interactive world map of revenue</li>
+          <li>{% icon "orders" 16 %}Order workflow, timelines &amp; PDF invoices</li>
+          <li>{% icon "users" 16 %}Admin / Manager / Viewer roles with audit log</li>
+          <li>{% icon "download" 16 %}Excel, CSV &amp; PDF exports, scheduled e-mail reports</li>
+        </ul>
+      </div>
+      <div class="auth-preview" aria-hidden="true">
+        <div class="ap-card"><span>Revenue</span><b>$1.06M</b><i class="up">▲ 4.0%</i></div>
+        <div class="ap-card"><span>Orders</span><b>820</b><i class="up">▲ 0.7%</i></div>
+        <svg viewBox="0 0 300 80" class="ap-line"><path d="M0 60 C30 55 40 30 70 38 S110 70 140 45 180 20 210 30 260 8 300 14"/></svg>
+      </div>
+      <p class="auth-note">Demo with fictional data · built by a developer with 25 years of experience</p>
+    </section>
+
+    <section class="auth-form-wrap">
+      <form method="post" class="auth-form" id="login-form">
+        {% csrf_token %}
+        <h2>Sign in</h2>
+        <p class="muted">The demo account is pre-filled. Just press <b>Sign in</b>.</p>
+
+        {% if form.non_field_errors %}
+          <div class="form-error">{% icon "alert" 16 %}<span>{{ form.non_field_errors.0 }}</span></div>
+        {% endif %}
+
+        <label class="field"><span>Username</span>
+          <input type="text" name="username" id="id_username" value="{{ form.username.value|default:'demo' }}" autocomplete="username" required autofocus>
+        </label>
+        <label class="field"><span>Password</span>
+          <input type="password" name="password" id="id_password" value="{{ demo_password }}" autocomplete="current-password" required>
+        </label>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button class="btn btn-block" type="submit">Sign in</button>
+
+        <div class="demo-box">
+          <div class="demo-head">{% icon "info" 16 %}<b>Demo accounts</b><span class="muted">password: <code>{{ demo_password }}</code></span></div>
+          <div class="demo-accounts">
+            {% for username, role_name, desc in demo_accounts %}
+              <button type="button" class="demo-account" data-user="{{ username }}">
+                <span class="role-pill role-{{ role_name|lower }}">{{ role_name }}</span>
+                <b>{{ username }}</b>
+                <span class="muted">{{ desc }}</span>
+              </button>
+            {% endfor %}
+          </div>
+        </div>
+      </form>
+    </section>
+  </div>
+  <script>
+    document.querySelectorAll(".demo-account").forEach(function (b) {
+      b.addEventListener("click", function () {
+        document.getElementById("id_username").value = b.dataset.user;
+        document.getElementById("id_password").value = "{{ demo_password|escapejs }}";
+        document.getElementById("login-form").requestSubmit();
+      });
+    });
+  </script>
+</body>
+</html>

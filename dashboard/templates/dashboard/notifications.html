@@ -1,0 +1,43 @@
+{% extends "dashboard/base.html" %}
+{% load dash %}
+
+{% block title %}Notifications{% endblock %}
+{% block heading %}Notifications{% endblock %}
+{% block subheading %}{{ unread_count }} unread{% endblock %}
+
+{% block actions %}
+  {% if unread_count %}
+    <form method="post" action="{% url 'notifications_read_all' %}">{% csrf_token %}
+      <button class="btn btn-ghost" type="submit">{% icon "check" %}<span>Mark all read</span></button>
+    </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="toolbar">
+    <div class="segmented small">
+      <a href="?" class="{% if not kind and not unread_only %}on{% endif %}">All</a>
+      <a href="?unread=1" class="{% if unread_only %}on{% endif %}">Unread</a>
+      {% for value, label in kinds %}<a href="?kind={{ value }}" class="{% if kind == value %}on{% endif %}">{{ label }}</a>{% endfor %}
+    </div>
+  </div>
+  <ul class="notif-list">
+    {% for n in notifications_page %}
+      <li>
+        <a class="notif {% if not n.read %}unread{% endif %}" href="{% url 'open_notification' n.pk %}">
+          <span class="notif-icon kind-{{ n.kind }}">{% icon n.kind|notification_icon 18 %}</span>
+          <span class="grow">
+            <span class="notif-title">{{ n.title }}</span>
+            <span class="notif-body">{{ n.body }}</span>
+          </span>
+          <span class="notif-time" title="{{ n.created_at|date:'M j, Y H:i' }}">{{ n.created_at|timesince }} ago</span>
+        </a>
+      </li>
+    {% empty %}
+      <li class="empty">Nothing here.</li>
+    {% endfor %}
+  </ul>
+  {% include "dashboard/_pager.html" with page_obj=notifications_page params=request.GET.dict %}
+</section>
+{% endblock %}

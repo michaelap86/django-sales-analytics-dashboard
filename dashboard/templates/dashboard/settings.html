@@ -1,0 +1,114 @@
+{% extends "dashboard/base.html" %}
+{% load dash %}
+
+{% block title %}Settings{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block subheading %}Your profile, preferences and scheduled reports{% endblock %}
+
+{% block content %}
+<div class="settings-layout">
+  <nav class="settings-nav">
+    <a href="#profile">{% icon "customers" 16 %}Profile</a>
+    <a href="#preferences">{% icon "settings" 16 %}Preferences</a>
+    <a href="#security">{% icon "lock" 16 %}Security</a>
+    <a href="#reports">{% icon "mail" 16 %}Scheduled reports</a>
+  </nav>
+
+  <div class="stack">
+    <section class="card" id="profile">
+      <header class="card-head"><div><h2>Profile</h2><p class="muted">How you appear to your team</p></div>
+        <span class="role-pill role-{{ role|lower }}" title="{{ role_description }}">{{ role }}</span></header>
+      <form method="post" class="form-grid">{% csrf_token %}
+        <input type="hidden" name="form" value="profile">
+        {% with f=forms.profile %}
+          {% include "dashboard/_field.html" with field=f.first_name %}
+          {% include "dashboard/_field.html" with field=f.last_name %}
+          {% include "dashboard/_field.html" with field=f.email %}
+          {% include "dashboard/_field.html" with field=f.job_title %}
+        {% endwith %}
+        <div class="form-actions"><button class="btn" type="submit">Save profile</button></div>
+      </form>
+    </section>
+
+    <section class="card" id="preferences">
+      <header class="card-head"><div><h2>Preferences</h2><p class="muted">Applied across every page, chart and export</p></div></header>
+      <form method="post" class="form-grid">{% csrf_token %}
+        <input type="hidden" name="form" value="preferences">
+        {% with f=forms.preferences %}
+          {% include "dashboard/_field.html" with field=f.currency %}
+          {% include "dashboard/_field.html" with field=f.timezone %}
+          <div class="field full">
+            <span>Accent colour</span>
+            <div class="swatches">
+              {% for radio in f.accent %}
+                <label class="swatch sw-{{ radio.data.value }}">{{ radio.tag }}<i></i><span>{{ radio.choice_label }}</span></label>
+              {% endfor %}
+            </div>
+          </div>
+        {% endwith %}
+        <p class="footnote full">Amounts are stored in USD and converted at fixed demo rates (1 USD = 0.92 EUR = 0.79 GBP).</p>
+        <div class="form-actions"><button class="btn" type="submit">Save preferences</button></div>
+      </form>
+    </section>
+
+    <section class="card" id="security">
+      <header class="card-head"><div><h2>Password</h2><p class="muted">Use at least 8 characters</p></div></header>
+      {% if is_demo %}
+        <p class="locked">{% icon "lock" 16 %}<span>This is a shared demo account, so its password can't be changed.</span></p>
+      {% else %}
+        <form method="post" class="form-grid">{% csrf_token %}
+          <input type="hidden" name="form" value="password">
+          {% with f=forms.password %}
+            {% include "dashboard/_field.html" with field=f.old_password %}
+            <span></span>
+            {% include "dashboard/_field.html" with field=f.new_password1 %}
+            {% include "dashboard/_field.html" with field=f.new_password2 %}
+          {% endwith %}
+          <div class="form-actions"><button class="btn" type="submit">Change password</button></div>
+        </form>
+      {% endif %}
+    </section>
+
+    <section class="card" id="reports">
+      <header class="card-head"><div><h2>Scheduled reports</h2><p class="muted">Delivered by e-mail as PDF, CSV or Excel</p></div></header>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Report</th><th>Schedule</th><th class="hide-sm">Recipients</th><th class="hide-sm">Last sent</th><th></th></tr></thead>
+          <tbody>
+            {% for r in reports %}
+              <tr class="{% if not r.active %}dimmed{% endif %}">
+                <td><div class="cell-main">{{ r.name }}</div><div class="cell-sub">{{ r.get_format_display }}{% if not r.active %} · paused{% endif %}</div></td>
+                <td class="muted">{{ r.get_frequency_display }}</td>
+                <td class="hide-sm muted">{{ r.recipients }}</td>
+                <td class="hide-sm muted nowrap">{% if r.last_sent %}{{ r.last_sent|timesince }} ago{% else %}Never{% endif %}</td>
+                <td class="num nowrap">
+                  <form method="post" action="{% url 'report_action' r.pk %}" class="inline">{% csrf_token %}
+                    <button class="link-btn" name="action" value="send" type="submit">Send now</button>
+                    <button class="link-btn" name="action" value="toggle" type="submit">{% if r.active %}Pause{% else %}Resume{% endif %}</button>
+                  </form>
+                  <form method="post" action="{% url 'report_action' r.pk %}" class="inline" data-confirm="Delete “{{ r.name }}”?">{% csrf_token %}
+                    <button class="link-btn danger" name="action" value="delete" type="submit">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}<tr><td colspan="5" class="empty">No scheduled reports yet.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="subhead">New scheduled report</h3>
+      <form method="post" action="{% url 'settings' %}#reports" class="form-grid">{% csrf_token %}
+        <input type="hidden" name="form" value="report">
+        {% with f=forms.report %}
+          {% include "dashboard/_field.html" with field=f.name %}
+          {% include "dashboard/_field.html" with field=f.recipients %}
+          {% include "dashboard/_field.html" with field=f.frequency %}
+          {% include "dashboard/_field.html" with field=f.format %}
+        {% endwith %}
+        <p class="footnote full">Demo mode: e-mails are written to the server log instead of being delivered.</p>
+        <div class="form-actions"><button class="btn" type="submit">{% icon "mail" %}Schedule report</button></div>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %}

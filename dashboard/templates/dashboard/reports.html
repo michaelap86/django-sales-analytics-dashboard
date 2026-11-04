@@ -1,0 +1,133 @@
+{% extends "dashboard/base.html" %}
+{% load static dash humanize %}
+
+{% block title %}Reports{% endblock %}
+{% block heading %}Reports &amp; insights{% endblock %}
+{% block subheading %}Trends, retention and forecasting · {{ filters.label }}{% endblock %}
+
+{% block actions %}{% include "dashboard/_export_menu.html" %}{% endblock %}
+
+{% block filterbar %}{% include "dashboard/_filters.html" %}{% endblock %}
+
+{% block content %}
+<nav class="tabs" aria-label="Report sections">
+  <a href="#yoy">Year over year</a><a href="#forecast">Forecast</a><a href="#cohorts">Retention</a>
+  <a href="#funnel">Funnel</a><a href="#heatmap">Peak hours</a><a href="#channels">Channels</a>
+</nav>
+
+<section class="kpis kpis-4">
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-revenue">{% icon "trend" %}</span><span class="kpi-label">Revenue YTD {{ yoy.year }}</span></div>
+    <div class="kpi-value">{{ yoy.ytd|money }}</div>
+    <div class="kpi-foot">{% if yoy.change is not None %}<span class="delta {% if yoy.change >= 0 %}up{% else %}down{% endif %}">{% if yoy.change >= 0 %}▲{% else %}▼{% endif %} {{ yoy.change|floatformat:1 }}%</span>{% endif %}<span class="muted">vs same period last year</span></div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-aov">{% icon "aov" %}</span><span class="kpi-label">Forecast, next 6 months</span></div>
+    <div class="kpi-value">{% if forecast %}{{ forecast.next_total|money }}{% else %}—{% endif %}</div>
+    <div class="kpi-foot">{% if forecast.change is not None %}<span class="delta {% if forecast.change >= 0 %}up{% else %}down{% endif %}">{% if forecast.change >= 0 %}▲{% else %}▼{% endif %} {{ forecast.change|floatformat:1 }}%</span><span class="muted">vs last 6 months</span>{% endif %}</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-orders">{% icon "orders" %}</span><span class="kpi-label">Visit → order conversion</span></div>
+    <div class="kpi-value">{{ conversion|floatformat:2 }}%</div><div class="kpi-foot muted">{{ funnel.0.value|intcomma }} visits in period</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-customers">{% icon "customers" %}</span><span class="kpi-label">Repeat purchase rate</span></div>
+    <div class="kpi-value">{{ repeat_rate|floatformat:1 }}%</div><div class="kpi-foot muted">Buyers with 2+ orders</div></article>
+</section>
+
+<section class="grid grid-2" id="yoy">
+  <article class="card chart-card">
+    <header class="card-head"><div><h2>Year over year</h2><p class="muted">Monthly revenue, {{ yoy.year }} vs {{ yoy.year|add:"-1" }}</p></div>
+      <div class="legend"><span><i class="dot dot-primary"></i>{{ yoy.year }}</span><span><i class="dot dot-muted"></i>{{ yoy.year|add:"-1" }}</span></div></header>
+    <div class="chart-box tall"><canvas id="yoyChart" role="img" aria-label="Year over year revenue"></canvas></div>
+  </article>
+  <article class="card chart-card" id="forecast">
+    <header class="card-head"><div><h2>Revenue forecast</h2><p class="muted">Trend × seasonality model, 80% confidence band</p></div>
+      <div class="legend"><span><i class="dot dot-primary"></i>Actual</span><span><i class="dot dot-accent"></i>Forecast</span></div></header>
+    {% if forecast %}
+      <div class="chart-box tall"><canvas id="forecastChart" role="img" aria-label="Revenue forecast"></canvas></div>
+      <p class="footnote">Fitted on complete months only. Trend adds about {{ forecast.monthly_growth|money }} per month; typical error ±{{ forecast.spread|floatformat:0 }}%.</p>
+    {% else %}
+      <p class="empty">Not enough history to forecast.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="card" id="cohorts">
+  <header class="card-head"><div><h2>Customer retention by cohort</h2>
+    <p class="muted">Share of customers from each first-purchase month who ordered again in later months</p></div></header>
+  <div class="table-wrap">
+    <table class="cohort">
+      <thead><tr><th>Cohort</th><th class="num">Customers</th>{% for i in cohort_offsets %}<th>M{{ i }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in cohorts %}
+          <tr>
+            <th>{{ row.month|date:"M Y" }}</th>
+            <td class="num muted">{{ row.size }}</td>
+            {% for v in row.cells %}
+              {% if v is None %}<td class="na"></td>
+              {% else %}<td style="--v: {% if forloop.first %}1{% else %}{{ v|retention_level }}{% endif %}" title="{{ v|floatformat:1 }}%">{{ v|floatformat:0 }}%</td>{% endif %}
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="grid grid-2">
+  <article class="card" id="funnel">
+    <header class="card-head"><div><h2>Conversion funnel</h2><p class="muted">From store visit to placed order</p></div></header>
+    <div class="funnel">
+      {% for step in funnel %}
+        <div class="funnel-step">
+          <div class="funnel-label"><span>{{ step.label }}</span><b>{{ step.value|intcomma }}</b></div>
+          <div class="funnel-bar"><span style="width: {{ step.pct|floatformat:2 }}%"></span></div>
+          <div class="funnel-meta">
+            <span>{{ step.pct|floatformat:1 }}% of visits</span>
+            {% if not forloop.first %}<span class="muted">{{ step.step|floatformat:1 }}% from previous step</span>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="card" id="heatmap">
+    <header class="card-head"><div><h2>Peak ordering hours</h2><p class="muted">Orders by weekday and hour (UTC)</p></div></header>
+    <div class="heatmap-wrap">
+      <table class="heatmap">
+        <thead><tr><th></th>{% for h in hours %}<th>{% if h|divisibleby:3 %}{{ h }}{% endif %}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for day, row in heat_rows %}
+            <tr><th>{{ day }}</th>{% for v in row %}<td style="--v: {{ v|heat_level:heat.peak }}" title="{{ day }} {{ forloop.counter0 }}:00: {{ v }} orders"></td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="heat-legend"><span>Fewer</span><i></i><span>More orders</span></div>
+    </div>
+  </article>
+</section>
+
+<section class="grid grid-2" id="channels">
+  <article class="card">
+    <header class="card-head"><div><h2>Sales channels</h2><p class="muted">Revenue and order value by channel</p></div></header>
+    <table class="table compact">
+      <thead><tr><th>Channel</th><th class="num">Orders</th><th class="num">Avg. order</th><th class="num">Revenue</th><th class="hide-sm">Share</th></tr></thead>
+      <tbody>
+        {% for c in channels %}
+          <tr>
+            <td class="cell-main">{{ c.label }}</td>
+            <td class="num">{{ c.orders|intcomma }}</td>
+            <td class="num">{{ c.aov|money }}</td>
+            <td class="num strong">{{ c.revenue|compact_money }}</td>
+            <td class="hide-sm"><div class="meter wide"><span style="width: {{ c.share|floatformat:1 }}%"></span></div></td>
+          </tr>
+        {% empty %}<tr><td colspan="5" class="empty">No sales in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </article>
+  <article class="card chart-card">
+    <header class="card-head"><div><h2>Payment methods</h2><p class="muted">Share of orders</p></div></header>
+    <div class="chart-box"><canvas id="paymentChart" role="img" aria-label="Payment methods"></canvas></div>
+  </article>
+</section>
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="{% static 'js/reports.js' %}"></script>
+{% endblock %}

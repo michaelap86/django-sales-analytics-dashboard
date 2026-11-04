@@ -1,0 +1,66 @@
+{% extends "dashboard/base.html" %}
+{% load dash %}
+
+{% block title %}Users & roles{% endblock %}
+{% block heading %}Users &amp; roles{% endblock %}
+{% block subheading %}Control who can see and change what{% endblock %}
+
+{% block content %}
+<section class="grid grid-3">
+  {% for name, desc, count in roles %}
+    <article class="card role-card">
+      <span class="role-pill role-{{ name|lower }}">{{ name }}</span>
+      <b>{{ count }} active</b>
+      <p class="muted">{{ desc }}</p>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <header class="card-head"><div><h2>Team members</h2><p class="muted">Demo accounts are locked so every visitor gets the same experience</p></div></header>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Member</th><th class="hide-sm">Title</th><th>Role</th><th class="hide-sm">Last sign-in</th><th class="num hide-sm">Actions (logged)</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+          {% with u=row.user %}
+          <tr class="{% if not u.is_active %}dimmed{% endif %}">
+            <td>
+              <div class="person">
+                <span class="avatar avatar-{{ u.pk|avatar_tone }}">{{ u.get_full_name|default:u.username|initials }}</span>
+                <div>
+                  <div class="cell-main">{{ u.get_full_name|default:u.username }}{% if u == user %} <span class="muted">(you)</span>{% endif %}{% if u.profile.is_demo %} <span class="tag">demo</span>{% endif %}</div>
+                  <div class="cell-sub">@{{ u.username }} · {{ u.email }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="hide-sm muted">{{ u.profile.job_title }}</td>
+            <td>
+              {% if u == user or u.profile.is_demo %}
+                <span class="role-pill role-{{ row.role|lower }}">{{ row.role }}</span>
+              {% else %}
+                <form method="post" action="{% url 'user_role' u.pk %}">{% csrf_token %}
+                  <select name="role" class="inline-select" onchange="this.form.requestSubmit()" aria-label="Role for {{ u.username }}">
+                    {% for r in role_names %}<option value="{{ r }}" {% if r == row.role %}selected{% endif %}>{{ r }}</option>{% endfor %}
+                  </select>
+                </form>
+              {% endif %}
+            </td>
+            <td class="hide-sm muted nowrap">{% if u.last_login %}{{ u.last_login|timesince }} ago{% else %}Never{% endif %}</td>
+            <td class="num hide-sm">{{ u.actions }}</td>
+            <td>{% if u.is_active %}<span class="badge badge-delivered">Active</span>{% else %}<span class="badge badge-refunded">Disabled</span>{% endif %}</td>
+            <td class="num">
+              {% if u != user and not u.profile.is_demo %}
+                <form method="post" action="{% url 'user_active' u.pk %}" data-confirm="{% if u.is_active %}Disable{% else %}Re-enable{% endif %} {{ u.get_full_name }}?">{% csrf_token %}
+                  <button class="link-btn {% if u.is_active %}danger{% endif %}" type="submit">{% if u.is_active %}Disable{% else %}Enable{% endif %}</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,6 @@
+<label class="field">
+  <span>{{ field.label }}</span>
+  {{ field }}
+  {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
+  {% if field.help_text %}<small class="muted">{{ field.help_text|safe }}</small>{% endif %}
+</label>

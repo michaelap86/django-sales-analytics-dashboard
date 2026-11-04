@@ -1,0 +1,16 @@
+{% load dash %}
+{% for title, kind, results in groups %}
+  <div class="palette-group">{{ title }}</div>
+  {% for r in results %}
+    <a class="palette-item" href="{{ r.url }}">
+      <span class="palette-icon">{% if kind == "order" %}{% icon "orders" 16 %}{% elif kind == "customer" %}{% icon "customers" 16 %}{% elif kind == "product" %}{% icon "products" 16 %}{% else %}{% icon "page" 16 %}{% endif %}</span>
+      <span class="palette-text">
+        <span class="cell-main">{{ r.title }}</span>
+        <span class="cell-sub">{{ r.sub }}</span>
+      </span>
+      {% if r.status %}<span class="badge badge-{{ r.status }}">{{ r.status_label }}</span><b class="num">{{ r.total|money:2 }}</b>{% endif %}
+    </a>
+  {% endfor %}
+{% empty %}
+  <p class="palette-empty">No results for “{{ q }}”.</p>
+{% endfor %}

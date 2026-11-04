@@ -1,0 +1,12 @@
+{% extends "dashboard/base.html" %}
+{% load dash %}
+{% block title %}Not found{% endblock %}
+{% block heading %}Page not found{% endblock %}
+{% block content %}
+<section class="card empty-state">
+  <span class="empty-icon">{% icon "search" 28 %}</span>
+  <h2>We couldn't find that page</h2>
+  <p class="muted">It may have been moved, or the link is wrong. Try searching with <kbd>Ctrl K</kbd>.</p>
+  <a class="btn" href="{% url 'dashboard' %}">Back to overview</a>
+</section>
+{% endblock %}

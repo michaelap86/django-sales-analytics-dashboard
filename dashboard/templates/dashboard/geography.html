@@ -1,0 +1,110 @@
+{% extends "dashboard/base.html" %}
+{% load dash humanize %}
+
+{% block title %}Geography{% endblock %}
+{% block heading %}Geography{% endblock %}
+{% block subheading %}Revenue by country · {{ filters.label }}{% endblock %}
+
+{% block actions %}{% include "dashboard/_export_menu.html" %}{% endblock %}
+
+{% block filterbar %}{% include "dashboard/_filters.html" %}{% endblock %}
+
+{% block content %}
+<section class="region-strip">
+  {% for r in region_list %}
+    <article class="card region-card">
+      <span class="muted">{{ r.name }}</span>
+      <b>{{ r.revenue|compact_money }}</b>
+      <div class="meter wide"><span style="width: {{ r.share|floatformat:1 }}%"></span></div>
+      <span class="cell-sub">{{ r.share|floatformat:1 }}% · {{ r.orders|intcomma }} orders · {{ r.countries }} countr{{ r.countries|pluralize:"y,ies" }}</span>
+    </article>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <header class="card-head"><div><h2>World map</h2><p class="muted">Darker countries generate more revenue. Hover for details.</p></div></header>
+  <div class="map-box"><canvas id="mapChart" role="img" aria-label="Revenue by country map"></canvas>
+    <p class="map-loading muted" id="map-loading">Loading map…</p></div>
+</section>
+
+<section class="card">
+  <header class="card-head"><div><h2>Countries</h2><p class="muted">{{ countries|length }} markets with sales in this period</p></div></header>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>#</th><th>Country</th><th class="hide-sm">Region</th><th class="num">Customers</th><th class="num">Orders</th><th class="num hide-sm">Avg. order</th><th class="num">Revenue</th><th class="hide-sm">Share</th><th class="num">vs prev.</th></tr></thead>
+      <tbody>
+        {% for c in countries %}
+          <tr>
+            <td class="muted">{{ forloop.counter }}</td>
+            <td class="cell-main">{{ c.order__customer__country }}</td>
+            <td class="hide-sm muted">{{ c.region_name }}</td>
+            <td class="num">{{ c.customers|intcomma }}</td>
+            <td class="num">{{ c.orders|intcomma }}</td>
+            <td class="num hide-sm">{{ c.aov|money }}</td>
+            <td class="num strong">{{ c.revenue|money }}</td>
+            <td class="hide-sm"><div class="meter wide"><span style="width: {{ c.share|floatformat:1 }}%"></span></div></td>
+            <td class="num">{% if c.change is not None %}<span class="delta {% if c.change >= 0 %}up{% else %}down{% endif %}">{% if c.change >= 0 %}▲{% else %}▼{% endif %} {{ c.change|floatformat:0 }}%</span>{% else %}<span class="muted">new</span>{% endif %}</td>
+          </tr>
+        {% empty %}<tr><td colspan="9" class="empty">No sales in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-geo@4.3.4/build/index.umd.min.js"></script>
+  <script>
+    (function () {
+      var data = Pulse.readJSON("chart-data").countries;
+      fetch("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json")
+        .then(function (r) { return r.json(); })
+        .then(function (world) {
+          document.getElementById("map-loading").remove();
+          var countries = ChartGeo.topojson.feature(world, world.objects.countries).features
+            .filter(function (f) { return f.properties.name !== "Antarctica"; });
+          Pulse.charts(function () {
+            return [new Chart(document.getElementById("mapChart"), {
+              type: "choropleth",
+              data: {
+                labels: countries.map(function (f) { return f.properties.name; }),
+                datasets: [{
+                  label: "Revenue",
+                  outline: countries,
+                  data: countries.map(function (f) { return { feature: f, value: data[f.properties.name] || 0 }; }),
+                  borderColor: Pulse.color("--surface"),
+                  borderWidth: 0.5,
+                }],
+              },
+              options: {
+                showOutline: false,
+                showGraticule: false,
+                scales: {
+                  projection: { axis: "x", projection: "equalEarth" },
+                  color: {
+                    axis: "x",
+                    interpolate: function (v) {
+                      // Mix between the empty-country tone and the accent colour
+                      var a = Pulse.color("--map-empty"), b = Pulse.color("--primary");
+                      if (v === 0) return a;
+                      var pa = a.match(/\d+/g).map(Number), pb = b.match(/\d+/g).map(Number);
+                      var t = 0.25 + 0.75 * v;
+                      return "rgb(" + pa.slice(0, 3).map(function (x, i) { return Math.round(x + (pb[i] - x) * t); }).join(",") + ")";
+                    },
+                    legend: { position: "bottom-left", align: "right" },
+                    ticks: { callback: function (v) { return Pulse.compact.format(v); } },
+                  },
+                },
+                plugins: {
+                  tooltip: { callbacks: { label: function (c) { return c.raw.feature.properties.name + ": " + (c.raw.value ? Pulse.money.format(c.raw.value) : "no sales"); } } },
+                },
+              },
+            })];
+          });
+        })
+        .catch(function () { document.getElementById("map-loading").textContent = "The map couldn't be loaded."; });
+    })();
+  </script>
+{% endblock %}

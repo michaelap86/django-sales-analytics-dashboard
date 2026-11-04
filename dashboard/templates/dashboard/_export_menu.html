@@ -1,0 +1,9 @@
+{% load dash %}
+<div class="dropdown" data-dropdown>
+  <button class="btn" type="button" data-dropdown-toggle>{% icon "download" %}<span>Export</span></button>
+  <div class="dropdown-menu export-menu">
+    {% for label, url, hint in exports %}
+      <a href="{{ url }}">{% icon "file" 16 %}<span><b>{{ label }}</b><span class="muted">{{ hint }}</span></span></a>
+    {% endfor %}
+  </div>
+</div>

@@ -1,0 +1,125 @@
+{% extends "dashboard/base.html" %}
+{% load static dash humanize %}
+
+{% block title %}{{ customer.name }}{% endblock %}
+{% block breadcrumbs %}<nav class="crumbs"><a href="{% url 'customers' %}">Customers</a><span>/</span>{{ customer.name }}</nav>{% endblock %}
+{% block heading %}{{ customer.name }} <span class="seg-badge seg-{{ customer.segment }} big">{{ segment_label }}</span>{% endblock %}
+{% block subheading %}{{ customer.company|default:"Individual buyer" }} · {{ customer.country }} · customer since {{ customer.joined|date:"F Y" }}{% endblock %}
+
+{% block actions %}
+  <a class="btn btn-ghost" href="mailto:{{ customer.email }}">{% icon "mail" %}<span>Email</span></a>
+{% endblock %}
+
+{% block content %}
+<section class="kpis kpis-4">
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-revenue">{% icon "revenue" %}</span><span class="kpi-label">Lifetime spend</span></div>
+    <div class="kpi-value">{{ stats.spent|money }}</div><div class="kpi-foot muted">Excluding refunds</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-orders">{% icon "orders" %}</span><span class="kpi-label">Orders</span></div>
+    <div class="kpi-value">{{ stats.orders }}</div><div class="kpi-foot muted">{{ stats.refunds }} refunded</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-aov">{% icon "aov" %}</span><span class="kpi-label">Avg. order value</span></div>
+    <div class="kpi-value">{{ stats.aov|money }}</div><div class="kpi-foot muted">Per order</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-customers">{% icon "clock" %}</span><span class="kpi-label">Last order</span></div>
+    <div class="kpi-value">{% if stats.days_since is not None %}{{ stats.days_since }}d{% else %}—{% endif %}</div>
+    <div class="kpi-foot muted">{% if customer.last_order %}{{ customer.last_order|date:"M j, Y" }}{% else %}No orders yet{% endif %}</div></article>
+</section>
+
+<section class="grid grid-main">
+  <article class="card chart-card span-2">
+    <header class="card-head"><div><h2>Spend over time</h2><p class="muted">Monthly, since first order</p></div></header>
+    <div class="chart-box"><canvas id="spendChart" role="img" aria-label="Monthly spend"></canvas></div>
+  </article>
+  <article class="card">
+    <header class="card-head"><div><h2>Contact</h2></div></header>
+    <dl class="facts">
+      <dt>Email</dt><dd>{{ customer.email }}</dd>
+      <dt>Phone</dt><dd>{{ customer.phone }}</dd>
+      <dt>Company</dt><dd>{{ customer.company|default:"—" }}</dd>
+      <dt>Country</dt><dd>{{ customer.country }}</dd>
+      <dt>Region</dt><dd>{{ region_name }}</dd>
+      <dt>Joined</dt><dd>{{ customer.joined|date:"M j, Y" }}</dd>
+    </dl>
+  </article>
+</section>
+
+<section class="grid grid-2">
+  <article class="card">
+    <header class="card-head"><div><h2>Favourite categories</h2><p class="muted">Share of spend</p></div></header>
+    <div class="split">
+      <div class="chart-box donut small"><canvas id="catChart" role="img" aria-label="Spend by category"></canvas></div>
+      <ul class="cat-list">
+        {% for c in by_category %}
+          <li><i class="dot" style="background: {{ c.product__category__color }}"></i><span>{{ c.product__category__name }}</span><b>{{ c.revenue|compact_money }}</b><span></span></li>
+        {% empty %}<li class="muted">No purchases yet.</li>{% endfor %}
+      </ul>
+    </div>
+  </article>
+  <article class="card">
+    <header class="card-head"><div><h2>Most bought products</h2><p class="muted">By units</p></div></header>
+    <table class="table compact">
+      <tbody>
+        {% for p in favourites %}
+          <tr class="row-link" data-href="{% url 'product_detail' p.product__id %}">
+            <td class="cell-main">{{ p.product__name }}</td>
+            <td class="num muted">{{ p.units }} units</td>
+            <td class="num strong">{{ p.revenue|money }}</td>
+          </tr>
+        {% empty %}<tr><td class="empty">No purchases yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+
+<section class="card">
+  <header class="card-head"><div><h2>Order history</h2><p class="muted">Latest {{ orders|length }} orders</p></div></header>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Order</th><th>Date</th><th class="hide-sm">Channel</th><th>Status</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for o in orders %}
+          <tr class="row-link" data-href="{% url 'order_detail' o.number %}">
+            <td><a class="mono" href="{% url 'order_detail' o.number %}">{{ o.number }}</a></td>
+            <td class="muted">{{ o.created|date:"M j, Y" }}</td>
+            <td class="hide-sm muted">{{ o.get_channel_display }}</td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.get_status_display }}</span></td>
+            <td class="num strong">{{ o.total|money:2 }}</td>
+          </tr>
+        {% empty %}<tr><td colspan="5" class="empty">No orders yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      var data = Pulse.readJSON("chart-data");
+      Pulse.charts(function () {
+        var primary = Pulse.color("--primary");
+        return [
+          new Chart(document.getElementById("spendChart"), {
+            type: "bar",
+            data: {
+              labels: data.labels.map(function (l) { return new Date(l + "T00:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" }); }),
+              datasets: [{ data: data.values, backgroundColor: primary, borderRadius: 4, maxBarThickness: 26 }],
+            },
+            options: {
+              scales: {
+                x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12 } },
+                y: { grid: { color: Pulse.color("--grid") }, border: { display: false }, beginAtZero: true, ticks: { callback: function (v) { return Pulse.compact.format(v); } } },
+              },
+              plugins: { tooltip: { displayColors: false, callbacks: { label: function (c) { return Pulse.money.format(c.parsed.y); } } } },
+            },
+          }),
+          new Chart(document.getElementById("catChart"), {
+            type: "doughnut",
+            data: { labels: data.categories.labels, datasets: [{ data: data.categories.values, backgroundColor: data.categories.colors, borderColor: Pulse.color("--surface"), borderWidth: 3 }] },
+            options: { cutout: "68%", plugins: { tooltip: { callbacks: { label: function (c) { return " " + c.label + ": " + Pulse.money.format(c.parsed); } } } } },
+          }),
+        ];
+      });
+    })();
+  </script>
+{% endblock %}

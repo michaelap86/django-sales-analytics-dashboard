@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: pulse-analytics
+    runtime: docker
+    plan: free
+    healthCheckPath: /login/
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "0"

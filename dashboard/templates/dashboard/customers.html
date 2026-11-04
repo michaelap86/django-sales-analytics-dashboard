@@ -1,0 +1,80 @@
+{% extends "dashboard/base.html" %}
+{% load dash humanize %}
+
+{% block title %}Customers{% endblock %}
+{% block heading %}Customers{% endblock %}
+{% block subheading %}{{ total_customers|intcomma }} customers · segmented automatically by purchase behaviour{% endblock %}
+
+{% block actions %}
+  <a class="btn" href="{% url 'export_customers_csv' %}?{% query_with %}">{% icon "download" %}<span>Export CSV</span></a>
+{% endblock %}
+
+{% block content %}
+<section class="segments">
+  <a class="segment-card {% if not params.segment %}on{% endif %}" href="?{% query_with segment='' %}">
+    <span class="seg-label">All customers</span>
+    <b>{{ total_customers|intcomma }}</b>
+    <span class="muted">Every account</span>
+  </a>
+  {% for s in segments %}
+    <a class="segment-card seg-{{ s.key }} {% if params.segment == s.key %}on{% endif %}" href="?{% query_with segment=s.key %}">
+      <span class="seg-label"><i class="seg-dot"></i>{{ s.label }}</span>
+      <b>{{ s.count|intcomma }}</b>
+      <span class="muted">{{ s.hint }}</span>
+    </a>
+  {% endfor %}
+</section>
+
+<section class="card">
+  <form class="toolbar" method="get">
+    {% if params.segment %}<input type="hidden" name="segment" value="{{ params.segment }}">{% endif %}
+    <input type="hidden" name="sort" value="{{ params.sort }}">
+    <input type="search" name="q" value="{{ params.q }}" placeholder="Search name, email, company, country…" class="search">
+    <select name="region" onchange="this.form.requestSubmit()" aria-label="Region">
+      <option value="">All regions</option>
+      {% for v, l in regions %}<option value="{{ v }}" {% if params.region == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+    {% if params.q or params.region or params.segment %}<a class="reset" href="?">Reset</a>{% endif %}
+  </form>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th><a class="sort {% sort_class 'name' %}" href="?{% sort_link 'name' %}">Customer</a></th>
+          <th class="hide-sm">Location</th>
+          <th>Segment</th>
+          <th class="num"><a class="sort {% sort_class 'orders' %}" href="?{% sort_link 'orders' %}">Orders</a></th>
+          <th class="num"><a class="sort {% sort_class 'spent' %}" href="?{% sort_link 'spent' %}">Lifetime spend</a></th>
+          <th class="hide-sm"><a class="sort {% sort_class 'last' %}" href="?{% sort_link 'last' %}">Last order</a></th>
+          <th class="hide-sm"><a class="sort {% sort_class 'joined' %}" href="?{% sort_link 'joined' %}">Joined</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in customers_page %}
+          <tr class="row-link" data-href="{% url 'customer_detail' c.pk %}">
+            <td>
+              <div class="person">
+                <span class="avatar avatar-{{ c.pk|avatar_tone }}">{{ c.name|initials }}</span>
+                <div>
+                  <div class="cell-main">{{ c.name }}</div>
+                  <div class="cell-sub">{{ c.company|default:"Individual" }} · {{ c.email }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="hide-sm"><div>{{ c.country }}</div><div class="cell-sub">{{ region_names|get:c.region }}</div></td>
+            <td><span class="seg-badge seg-{{ c.segment }}">{{ segment_labels|get:c.segment }}</span></td>
+            <td class="num">{{ c.order_count }}</td>
+            <td class="num strong">{{ c.spent|money }}</td>
+            <td class="hide-sm muted nowrap">{% if c.last_order %}{{ c.last_order|naturalday:"M j, Y" }}{% else %}—{% endif %}</td>
+            <td class="hide-sm muted nowrap">{{ c.joined|date:"M j, Y" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="empty">No customers match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "dashboard/_pager.html" with page_obj=customers_page %}
+</section>
+{% endblock %}

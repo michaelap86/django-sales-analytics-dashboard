@@ -1,0 +1,87 @@
+{% extends "dashboard/base.html" %}
+{% load dash humanize %}
+
+{% block title %}Products{% endblock %}
+{% block heading %}Products &amp; inventory{% endblock %}
+{% block subheading %}{{ summary.count }} products · sales figures cover the last 30 days{% endblock %}
+
+{% block actions %}
+  <a class="btn" href="{% url 'export_products_csv' %}?{% query_with %}">{% icon "download" %}<span>Export CSV</span></a>
+{% endblock %}
+
+{% block content %}
+<section class="kpis kpis-4">
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-orders">{% icon "products" %}</span><span class="kpi-label">Units in stock</span></div>
+    <div class="kpi-value">{{ summary.units|intcomma }}</div><div class="kpi-foot muted">Across {{ summary.count }} SKUs</div></article>
+  <article class="card kpi"><div class="kpi-head"><span class="kpi-icon kpi-revenue">{% icon "revenue" %}</span><span class="kpi-label">Inventory value</span></div>
+    <div class="kpi-value">{{ summary.inventory_value|money }}</div><div class="kpi-foot muted">At cost price</div></article>
+  <a class="card kpi kpi-link" href="?stock=low"><div class="kpi-head"><span class="kpi-icon kpi-aov">{% icon "alert" %}</span><span class="kpi-label">Low stock</span></div>
+    <div class="kpi-value">{{ summary.low }}</div><div class="kpi-foot muted">At or below reorder level →</div></a>
+  <a class="card kpi kpi-link" href="?stock=out"><div class="kpi-head"><span class="kpi-icon kpi-out">{% icon "x" %}</span><span class="kpi-label">Out of stock</span></div>
+    <div class="kpi-value">{{ summary.out }}</div><div class="kpi-foot muted">Needs restocking →</div></a>
+</section>
+
+<section class="card">
+  <form class="toolbar" method="get">
+    <input type="hidden" name="sort" value="{{ params.sort }}">
+    {# Keeps the stock filter when another field changes; a clicked button comes later and wins #}
+    {% if params.stock %}<input type="hidden" name="stock" value="{{ params.stock }}">{% endif %}
+    <input type="search" name="q" value="{{ params.q }}" placeholder="Search name or SKU…" class="search">
+    <select name="category" onchange="this.form.requestSubmit()" aria-label="Category">
+      <option value="">All categories</option>
+      {% for c in categories %}<option value="{{ c.pk }}" {% if params.category == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }} ({{ c.n }})</option>{% endfor %}
+    </select>
+    <div class="segmented small">
+      <button type="submit" name="stock" value="" class="{% if not params.stock %}on{% endif %}">All</button>
+      <button type="submit" name="stock" value="ok" class="{% if params.stock == 'ok' %}on{% endif %}">In stock</button>
+      <button type="submit" name="stock" value="low" class="{% if params.stock == 'low' %}on{% endif %}">Low</button>
+      <button type="submit" name="stock" value="out" class="{% if params.stock == 'out' %}on{% endif %}">Out</button>
+    </div>
+    {% if params.q or params.category or params.stock %}<a class="reset" href="?">Reset</a>{% endif %}
+  </form>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th><a class="sort {% sort_class 'name' %}" href="?{% sort_link 'name' %}">Product</a></th>
+          <th class="num"><a class="sort {% sort_class 'price' %}" href="?{% sort_link 'price' %}">Price</a></th>
+          <th class="num hide-sm">Margin</th>
+          <th><a class="sort {% sort_class 'stock' %}" href="?{% sort_link 'stock' %}">Stock</a></th>
+          <th class="num"><a class="sort {% sort_class 'sold' %}" href="?{% sort_link 'sold' %}">Sold 30d</a></th>
+          <th class="num"><a class="sort {% sort_class 'revenue' %}" href="?{% sort_link 'revenue' %}">Revenue 30d</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products_page %}
+          <tr class="row-link" data-href="{% url 'product_detail' p.pk %}">
+            <td>
+              <div class="person">
+                <span class="product-thumb" style="--c: {{ p.category.color }}">{{ p.name|initials }}</span>
+                <div>
+                  <div class="cell-main">{{ p.name }}</div>
+                  <div class="cell-sub"><span class="mono">{{ p.sku }}</span>&nbsp;· {{ p.category.name }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="num">{{ p.price|money:2 }}</td>
+            <td class="num hide-sm muted">{{ p.margin|floatformat:0 }}%</td>
+            <td>
+              <div class="stock-cell">
+                <span class="stock-pill {{ p.stock_status }}">{% if p.stock_status == 'out' %}Out{% elif p.stock_status == 'low' %}Low{% else %}In stock{% endif %}</span>
+                <span class="stock-num">{{ p.stock }}</span>
+              </div>
+              <div class="meter"><span style="width: {% widthratio p.stock 400 100 %}%"></span></div>
+            </td>
+            <td class="num">{{ p.sold_30|intcomma }}</td>
+            <td class="num strong">{{ p.revenue_30|money }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">No products match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "dashboard/_pager.html" with page_obj=products_page %}
+</section>
+{% endblock %}

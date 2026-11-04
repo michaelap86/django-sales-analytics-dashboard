@@ -1,0 +1,177 @@
+{% load static dash %}<!doctype html>
+<html lang="en" data-accent="{{ profile.accent|default:'indigo' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Dashboard{% endblock %} · Pulse Analytics</title>
+  <meta name="description" content="Sales analytics & admin panel demo built with Django, using fictional data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234f46e5'/><path d='M6 18h5l3-8 4 14 3-6h5' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash
+    (function () {
+      try {
+        var t = localStorage.getItem("theme");
+        if (t) document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body data-currency="{{ currency_code }}">
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="{% url 'dashboard' %}">
+        <span class="brand-mark">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 18h5l3-8 4 14 3-6h5"/></svg>
+        </span>
+        <span>Pulse<b>Analytics</b></span>
+      </a>
+
+      <button class="search-trigger" type="button" data-open-search>
+        {% icon "search" 16 %}<span>Search…</span><kbd>Ctrl K</kbd>
+      </button>
+
+      <nav class="nav">
+        <span class="nav-label">Analytics</span>
+        <a href="{% url 'dashboard' %}" class="{% if page == 'dashboard' %}active{% endif %}">{% icon "overview" %}Overview</a>
+        <a href="{% url 'reports' %}" class="{% if page == 'reports' %}active{% endif %}">{% icon "reports" %}Reports</a>
+        <a href="{% url 'geography' %}" class="{% if page == 'geography' %}active{% endif %}">{% icon "geography" %}Geography</a>
+
+        <span class="nav-label">Commerce</span>
+        <a href="{% url 'orders' %}" class="{% if page == 'orders' %}active{% endif %}">{% icon "orders" %}Orders</a>
+        <a href="{% url 'customers' %}" class="{% if page == 'customers' %}active{% endif %}">{% icon "customers" %}Customers</a>
+        <a href="{% url 'products' %}" class="{% if page == 'products' %}active{% endif %}">{% icon "products" %}Products</a>
+
+        <span class="nav-label">Workspace</span>
+        <a href="{% url 'notifications' %}" class="{% if page == 'notifications' %}active{% endif %}">
+          {% icon "bell" %}Notifications{% if unread_count %}<span class="nav-count">{{ unread_count }}</span>{% endif %}
+        </a>
+        {% if is_admin %}
+          <a href="{% url 'users' %}" class="{% if page == 'users' %}active{% endif %}">{% icon "users" %}Users &amp; roles</a>
+          <a href="{% url 'audit_log' %}" class="{% if page == 'audit' %}active{% endif %}">{% icon "audit" %}Audit log</a>
+        {% endif %}
+        <a href="{% url 'settings' %}" class="{% if page == 'settings' %}active{% endif %}">{% icon "settings" %}Settings</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="me">
+          <span class="avatar avatar-{{ user.pk|avatar_tone }}">{{ user.get_full_name|default:user.username|initials }}</span>
+          <div>
+            <div class="cell-main">{{ user.get_full_name|default:user.username }}</div>
+            <div class="cell-sub"><span class="role-pill role-{{ role|lower }}">{{ role }}</span></div>
+          </div>
+        </div>
+        <span class="demo-pill">Demo · fictional data</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" type="button" aria-label="Open menu" onclick="document.body.classList.toggle('nav-open')">
+          {% icon "menu" %}
+        </button>
+        <div class="topbar-title">
+          {% block breadcrumbs %}{% endblock %}
+          <h1>{% block heading %}Overview{% endblock %}</h1>
+          <p>{% block subheading %}{% endblock %}</p>
+        </div>
+        <div class="topbar-actions">
+          {% block actions %}{% endblock %}
+
+          <button class="icon-btn search-icon-btn" type="button" aria-label="Search" data-open-search>{% icon "search" %}</button>
+
+          <div class="dropdown" data-dropdown>
+            <button class="icon-btn" type="button" aria-label="Notifications" data-dropdown-toggle>
+              {% icon "bell" %}
+              {% if unread_count %}<span class="badge-dot">{{ unread_count }}</span>{% endif %}
+            </button>
+            <div class="dropdown-menu notif-menu">
+              <div class="dropdown-head">
+                <b>Notifications</b>
+                {% if unread_count %}
+                  <form method="post" action="{% url 'notifications_read_all' %}">{% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button class="link-btn" type="submit">Mark all read</button>
+                  </form>
+                {% endif %}
+              </div>
+              {% for n in latest_notifications %}
+                <a class="notif {% if not n.read %}unread{% endif %}" href="{% url 'open_notification' n.pk %}">
+                  <span class="notif-icon kind-{{ n.kind }}">{% icon n.kind|notification_icon 16 %}</span>
+                  <span>
+                    <span class="notif-title">{{ n.title }}</span>
+                    <span class="notif-body">{{ n.body }}</span>
+                    <span class="notif-time">{{ n.created_at|timesince }} ago</span>
+                  </span>
+                </a>
+              {% empty %}
+                <p class="muted pad">You're all caught up.</p>
+              {% endfor %}
+              <a class="dropdown-foot" href="{% url 'notifications' %}">View all notifications →</a>
+            </div>
+          </div>
+
+          <button class="icon-btn" type="button" id="theme-toggle" aria-label="Toggle dark mode">
+            <span class="i-moon">{% icon "moon" %}</span><span class="i-sun">{% icon "sun" %}</span>
+          </button>
+
+          <div class="dropdown" data-dropdown>
+            <button class="user-btn" type="button" data-dropdown-toggle aria-label="Account menu">
+              <span class="avatar avatar-{{ user.pk|avatar_tone }}">{{ user.get_full_name|default:user.username|initials }}</span>
+            </button>
+            <div class="dropdown-menu user-menu">
+              <div class="dropdown-head column">
+                <b>{{ user.get_full_name|default:user.username }}</b>
+                <span class="muted">{{ user.email }}</span>
+              </div>
+              <a href="{% url 'settings' %}">{% icon "settings" 16 %}Settings</a>
+              <a href="{% url 'notifications' %}">{% icon "bell" 16 %}Notifications</a>
+              <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+                <button type="submit">{% icon "logout" 16 %}Sign out</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {% block filterbar %}{% endblock %}
+
+      <div class="content">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+  <div class="scrim" onclick="document.body.classList.remove('nav-open')"></div>
+
+  {% if messages %}
+    <div class="toasts">
+      {% for m in messages %}
+        <div class="toast toast-{{ m.tags }}">
+          {% if m.tags == "error" %}{% icon "alert" 16 %}{% else %}{% icon "check" 16 %}{% endif %}
+          <span>{{ m }}</span>
+          <button type="button" aria-label="Dismiss" onclick="this.parentElement.remove()">{% icon "x" 14 %}</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="palette" id="palette" hidden>
+    <div class="palette-box" role="dialog" aria-label="Search">
+      <div class="palette-input">
+        {% icon "search" %}
+        <input type="search" id="palette-q" placeholder="Search orders, customers, products or pages…" autocomplete="off">
+        <kbd>Esc</kbd>
+      </div>
+      <div class="palette-results" id="palette-results" data-url="{% url 'search' %}"></div>
+      <div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>Enter</kbd> open</span></div>
+    </div>
+  </div>
+
+  <script src="{% static 'js/app.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

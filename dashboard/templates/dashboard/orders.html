@@ -1,0 +1,54 @@
+{% extends "dashboard/base.html" %}
+{% load dash humanize %}
+
+{% block title %}Orders{% endblock %}
+{% block heading %}Orders{% endblock %}
+{% block subheading %}{{ orders_page.paginator.count|intcomma }} orders · {{ filters.label }}{% endblock %}
+
+{% block actions %}{% include "dashboard/_export_menu.html" %}{% endblock %}
+
+{% block filterbar %}{% with show_search=True %}{% include "dashboard/_filters.html" %}{% endwith %}{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th><a class="sort {% sort_class 'number' %}" href="?{% sort_link 'number' %}">Order</a></th>
+          <th><a class="sort {% sort_class 'customer' %}" href="?{% sort_link 'customer' %}">Customer</a></th>
+          <th class="hide-sm">Country</th>
+          <th class="hide-sm">Channel</th>
+          <th><a class="sort {% sort_class 'date' %}" href="?{% sort_link 'date' %}">Date</a></th>
+          <th>Status</th>
+          <th class="num"><a class="sort {% sort_class 'total' %}" href="?{% sort_link 'total' %}">Total</a></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders_page %}
+          <tr class="row-link" data-href="{% url 'order_detail' o.number %}">
+            <td><a href="{% url 'order_detail' o.number %}" class="mono">{{ o.number }}</a></td>
+            <td>
+              <div class="person">
+                <span class="avatar avatar-{{ o.customer_id|avatar_tone }}">{{ o.customer.name|initials }}</span>
+                <div>
+                  <div class="cell-main">{{ o.customer.name }}</div>
+                  <div class="cell-sub">{{ o.customer.email }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="hide-sm muted">{{ o.customer.country }}</td>
+            <td class="hide-sm muted">{{ o.get_channel_display }}</td>
+            <td class="muted nowrap">{{ o.created|date:"M j, Y" }}</td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.get_status_display }}</span></td>
+            <td class="num strong">{{ o.total|money:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="empty">No orders match these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "dashboard/_pager.html" with page_obj=orders_page %}
+</section>
+{% endblock %}
