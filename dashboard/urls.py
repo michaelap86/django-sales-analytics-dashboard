@@ -1,10 +1,20 @@
+from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import LogoutView
 from django.urls import path
 
 from .views import customers, notifications, orders, overview, products, reports, search, system
 
+
+@login_not_required
+def home(request):
+    # Visitors who are not signed in see the login form right at the site address, with no redirect
+    if request.user.is_authenticated:
+        return overview.dashboard(request)
+    return system.DemoLoginView.as_view()(request)
+
+
 urlpatterns = [
-    path("", overview.dashboard, name="dashboard"),
+    path("", home, name="dashboard"),
     path("login/", system.DemoLoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
 

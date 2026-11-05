@@ -33,6 +33,13 @@ class AuthTests(DemoDataTestCase):
         response = self.client.get("/orders/")
         self.assertRedirects(response, "/login/?next=/orders/")
 
+    def test_site_address_shows_the_login_form_without_redirect(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "password")
+        self.client.post("/", {"username": "demo", "password": "demo1234"})
+        self.assertEqual(self.client.get("/").status_code, 200)
+
     def test_login_page_prefills_demo_account(self):
         response = self.client.get("/login/")
         self.assertContains(response, 'value="demo"')
